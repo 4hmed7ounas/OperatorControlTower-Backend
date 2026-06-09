@@ -79,8 +79,8 @@ Your job:
 
 You MUST respond in ONE of two formats:
 
-1. Normal response (Use this for general questions, summaries, explanations, or if no action is needed):
-Respond in clear, professional markdown bullet points.
+1. Normal response:
+Respond in clear, professional markdown bullet points. **Keep your responses extremely small, concise, easy to understand, and straight to the point. Focus only on critical operational facts. Avoid conversational filler.**
 
 2. Action response (Use this ONLY when the operator asks you to perform a task, or when an urgent action is detected, and you can map it to one of the available tools):
 You must output a single JSON object. No markdown block, no extra text.
@@ -95,13 +95,6 @@ Available tools:
 - reassignVehicle(bookingId: string, vehicleId: string)
 - getRiskyBookings()
 - getFleetStatus()
-
-Example Action triggers:
-- If a booking is late/unclaimed and the user asks to flag it or solve it, trigger "markBookingAsLate" with bookingId.
-- If a vehicle needs maintenance and the user asks to schedule it, trigger "scheduleMaintenance" with vehicleId.
-- If a vehicle is broken/in maintenance and we need to reassign a customer's booking to another available vehicle of the same or compatible type, trigger "reassignVehicle" with bookingId and vehicleId.
-- If the user asks for risky bookings, trigger "getRiskyBookings".
-- If the user asks for fleet status/metrics, trigger "getFleetStatus".
 
 Rules:
 - If you respond with JSON, make sure the arguments contain actual MongoDB ObjectId strings from the provided context (e.g. matching "id" fields), not placeholders.
@@ -243,41 +236,39 @@ function runMockCopilot(message, context) {
 
   // 1. Context-Aware Action Explanation
   if (query.includes("explain why you suggested") || query.includes("why did you suggest")) {
-    let actionName = "this action";
+    let actionName = "Action";
     if (query.includes("schedulemaintenance")) actionName = "Scheduling Maintenance";
     if (query.includes("markbookingaslate")) actionName = "Marking Booking as Late";
     if (query.includes("reassignvehicle")) actionName = "Reassigning Vehicle";
 
     return {
       type: "text",
-      text: `### 🔍 Recommendation Analysis: ${actionName}\n\nI suggested this action based on real-time metrics in the Ops Control Tower:\n\n* **Risk Mitigation**: The target resource has crossed operational thresholds (e.g., usage limit exceeded or pickup window elapsed).\n* **System Integrity**: Triggering this tool updates the database states, resolves the open alerts, and keeps the fleet logs accurate.\n* **Operational Impact**: By executing this, you prevent cascading delays in customer bookings and protect vehicle lifetime value.\n\n*Click **Run Action** in the card above to execute this tool directly.*`,
+      text: `### 🔍 Analysis: ${actionName}\n\n* **Why**: Resource exceeded safe operating metrics (late pickup or overdue maintenance).\n* **Impact**: Resolves open alerts, updates database records, and prevents logistics delays.\n\n*Click **Run Action** above to execute.*`,
     };
   }
 
   // 2. Context-Aware Alert Explanation
   if (query.includes("explain this alert") || query.includes("explain the alert")) {
-    // Extract the alert text if possible
     const match = message.match(/"([^"]+)"/) || message.match(/'([^']+)'/);
-    const alertText = match ? match[1] : "the alert message";
+    const alertText = match ? match[1] : "Alert";
 
-    let resolution = "Perform a manual check on the fleet status and proceed with standard dispatcher workflows.";
+    let resolution = "Perform manual diagnostic audit check.";
     if (alertText.toLowerCase().includes("maintenance")) {
-      resolution = "Schedule maintenance immediately to avoid engine wear. Once in maintenance, the alert will auto-resolve.";
+      resolution = "Schedule maintenance immediately to avoid engine damage.";
     } else if (alertText.toLowerCase().includes("overdue") || alertText.toLowerCase().includes("late")) {
-      resolution = "Contact the customer or mark the booking status as 'late' to notify management and flag the account.";
+      resolution = "Contact tenant or mark booking status to Late.";
     } else if (alertText.toLowerCase().includes("idle")) {
-      resolution = "No immediate danger, but consider lowering pricing or relocating the vehicle to a higher-demand hub.";
+      resolution = "Move vehicle to high-demand hub or adjust pricing.";
     }
 
     return {
       type: "text",
-      text: `### 🚨 Operational Advisory\n\n**Alert Details**:\n> "${alertText}"\n\n**Analysis**:\n* **Trigger**: The rules engine detected an operational anomaly matching this alert type.\n* **Severity**: This warning warrants immediate operator oversight to maintain target utilization rates.\n\n**Recommended Corrective Action**:\n* ${resolution}`,
+      text: `### 🚨 Alert Details\n\n> "${alertText}"\n\n* **Issue**: Rule violation detected.\n* **Resolution**: ${resolution}`,
     };
   }
 
   // 3. Tool Trigger: What needs attention / issues
   if (query.includes("attention") || query.includes("attention right now") || query.includes("issues") || query.includes("problems")) {
-    // Check if we have high-severity alerts
     const criticalAlert = context.alerts.find(a => a.severity === "high");
     if (criticalAlert) {
       if (criticalAlert.type === "maintenance_due") {
@@ -297,7 +288,6 @@ function runMockCopilot(message, context) {
       }
     }
 
-    // Try medium alerts
     const mediumAlert = context.alerts.find(a => a.severity === "medium");
     if (mediumAlert && mediumAlert.type === "late_booking") {
       return {
@@ -308,7 +298,6 @@ function runMockCopilot(message, context) {
       };
     }
 
-    // Suggest looking at risky bookings
     return {
       type: "action",
       action: "getRiskyBookings",
@@ -321,7 +310,6 @@ function runMockCopilot(message, context) {
   if (query.includes("underperforming") || query.includes("risky") || query.includes("risk")) {
     const riskyBooking = context.bookings.find(b => b.riskScore >= 50 && b.status !== "completed");
     if (riskyBooking) {
-      // Find an available vehicle of the same type to suggest reassignment
       const assignedVehicle = context.vehicles.find(v => v.id === riskyBooking.vehicleId);
       if (assignedVehicle) {
         const substitute = context.vehicles.find(v => v.status === "available" && v.type === assignedVehicle.type && v.id !== assignedVehicle.id);
@@ -338,12 +326,12 @@ function runMockCopilot(message, context) {
         type: "action",
         action: "getRiskyBookings",
         args: {},
-        text: `We have active bookings flagged with high risk scores. Let's pull the full list.`,
+        text: `We have active bookings flagged with high risk scores. Let's pull the list.`,
       };
     }
     return {
       type: "text",
-      text: `### Operational Health Summary\n\n* All active bookings have low risk scores (<50).\n* Fleet utilization is healthy.\n* No underperforming vehicles detected based on current bookings.`,
+      text: `### Operational Health Summary\n\n* All active bookings have low risk scores (<50).\n* Utilization is healthy. No underperforming units.`,
     };
   }
 
@@ -360,13 +348,13 @@ function runMockCopilot(message, context) {
 
     return {
       type: "text",
-      text: `### Operations Control Tower Summary\n\nHere is an overview of the operations today:\n\n* **Fleet Status**:\n  * Total vehicles: **${totalVehicles}**\n  * Active (In-Use): **${inUse}**\n  * In Maintenance: **${maintenance}**\n  * Available: **${available}**\n* **Bookings**:\n  * Ongoing/Active Bookings: **${activeBookings}**\n  * Upcoming Bookings: **${upcomingBookings}**\n* **Alerts**:\n  * Currently open: **${openAlerts}** active alerts require your review.\n\n*Suggestion*: Ask me "What needs attention right now?" to resolve specific alerts.`,
+      text: `### Operations Summary\n\n* **Fleet**: ${inUse}/${totalVehicles} in use, ${maintenance} in repair, ${available} available.\n* **Rentals**: ${activeBookings} active, ${upcomingBookings} upcoming.\n* **Alerts**: ${openAlerts} active alerts.\n\n*Ask "What needs attention right now?" to resolve alerts.*`,
     };
   }
 
   // General questions
   return {
     type: "text",
-    text: `### Hello! I am your Fleet Ops Copilot. 🚀\n\nHere are some operations-focused queries you can ask me:\n\n* 🚨 **"What needs attention right now?"** (Scans the control tower for alerts and suggests tool actions)\n* 📊 **"Summarize today's operations"** (Provides a quick breakdown of your fleet & bookings status)\n* ⚠️ **"Which vehicles are underperforming?"** (Lists vehicles close to maintenance or bookings at risk)\n\n*Note: Running in database-driven fallback mode. All tool recommendations will interact directly with the active backend services.*`,
+    text: `### Fleet Ops Copilot 🚀\n\nQuick queries you can ask:\n\n* 🚨 **"What needs attention right now?"** (Scans warnings & recommends actions)\n* 📊 **"Summarize today's operations"** (Quick metrics overview)\n* ⚠️ **"Which vehicles are underperforming?"** (Lists vehicles close to service limits)`,
   };
 }
