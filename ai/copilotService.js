@@ -241,7 +241,41 @@ export async function executeCopilotAction(actionName, args, triggeredBy = "ai")
 function runMockCopilot(message, context) {
   const query = message.toLowerCase();
 
-  // 1. Tool Trigger: What needs attention / issues
+  // 1. Context-Aware Action Explanation
+  if (query.includes("explain why you suggested") || query.includes("why did you suggest")) {
+    let actionName = "this action";
+    if (query.includes("schedulemaintenance")) actionName = "Scheduling Maintenance";
+    if (query.includes("markbookingaslate")) actionName = "Marking Booking as Late";
+    if (query.includes("reassignvehicle")) actionName = "Reassigning Vehicle";
+
+    return {
+      type: "text",
+      text: `### 🔍 Recommendation Analysis: ${actionName}\n\nI suggested this action based on real-time metrics in the Ops Control Tower:\n\n* **Risk Mitigation**: The target resource has crossed operational thresholds (e.g., usage limit exceeded or pickup window elapsed).\n* **System Integrity**: Triggering this tool updates the database states, resolves the open alerts, and keeps the fleet logs accurate.\n* **Operational Impact**: By executing this, you prevent cascading delays in customer bookings and protect vehicle lifetime value.\n\n*Click **Run Action** in the card above to execute this tool directly.*`,
+    };
+  }
+
+  // 2. Context-Aware Alert Explanation
+  if (query.includes("explain this alert") || query.includes("explain the alert")) {
+    // Extract the alert text if possible
+    const match = message.match(/"([^"]+)"/) || message.match(/'([^']+)'/);
+    const alertText = match ? match[1] : "the alert message";
+
+    let resolution = "Perform a manual check on the fleet status and proceed with standard dispatcher workflows.";
+    if (alertText.toLowerCase().includes("maintenance")) {
+      resolution = "Schedule maintenance immediately to avoid engine wear. Once in maintenance, the alert will auto-resolve.";
+    } else if (alertText.toLowerCase().includes("overdue") || alertText.toLowerCase().includes("late")) {
+      resolution = "Contact the customer or mark the booking status as 'late' to notify management and flag the account.";
+    } else if (alertText.toLowerCase().includes("idle")) {
+      resolution = "No immediate danger, but consider lowering pricing or relocating the vehicle to a higher-demand hub.";
+    }
+
+    return {
+      type: "text",
+      text: `### 🚨 Operational Advisory\n\n**Alert Details**:\n> "${alertText}"\n\n**Analysis**:\n* **Trigger**: The rules engine detected an operational anomaly matching this alert type.\n* **Severity**: This warning warrants immediate operator oversight to maintain target utilization rates.\n\n**Recommended Corrective Action**:\n* ${resolution}`,
+    };
+  }
+
+  // 3. Tool Trigger: What needs attention / issues
   if (query.includes("attention") || query.includes("attention right now") || query.includes("issues") || query.includes("problems")) {
     // Check if we have high-severity alerts
     const criticalAlert = context.alerts.find(a => a.severity === "high");
@@ -283,7 +317,7 @@ function runMockCopilot(message, context) {
     };
   }
 
-  // 2. Tool Trigger: Underperforming / risky vehicles / bookings
+  // 4. Tool Trigger: Underperforming / risky vehicles / bookings
   if (query.includes("underperforming") || query.includes("risky") || query.includes("risk")) {
     const riskyBooking = context.bookings.find(b => b.riskScore >= 50 && b.status !== "completed");
     if (riskyBooking) {
@@ -313,7 +347,7 @@ function runMockCopilot(message, context) {
     };
   }
 
-  // 3. Tool Trigger: Summarize operations
+  // 5. Tool Trigger: Summarize operations
   if (query.includes("summarize") || query.includes("summary") || query.includes("operations")) {
     const totalVehicles = context.vehicles.length;
     const inUse = context.vehicles.filter(v => v.status === "in_use").length;
