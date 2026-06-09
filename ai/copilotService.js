@@ -119,7 +119,7 @@ export async function askCopilot(userMessage) {
       const systemContent = `${SYSTEM_PROMPT}\n\nCURRENT SYSTEM STATE:\n${JSON.stringify(context, null, 2)}`;
 
       const response = await groq.chat.completions.create({
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemContent },
           { role: "user", content: userMessage },
